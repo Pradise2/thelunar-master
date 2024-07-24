@@ -16,6 +16,25 @@ const Farm = () => {
   const [buttonText, setButtonText] = useState("Start");
 
   useEffect(() => {
+    // Check if Telegram WebApp is available
+    if (window.Telegram && window.Telegram.WebApp) {
+      const { WebApp } = window.Telegram;
+      
+      // Expand the WebApp
+      WebApp.expand();
+  
+      const user = WebApp.initDataUnsafe?.user;
+      if (user) {
+        setUserId(user.id);
+      } else {
+        console.error('User data is not available.');
+      }
+    } else {
+      console.error('Telegram WebApp script is not loaded.');
+    }
+  }, []);
+
+  useEffect(() => {
     const fetchHomeData = async () => {
       try {
         const response = await axios.get(`http://localhost:5000/home/${userId}`);

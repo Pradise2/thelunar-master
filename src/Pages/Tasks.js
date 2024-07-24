@@ -17,6 +17,26 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [loadingTask, setLoadingTask] = useState(null);
 
+
+  useEffect(() => {
+    // Check if Telegram WebApp is available
+    if (window.Telegram && window.Telegram.WebApp) {
+      const { WebApp } = window.Telegram;
+      
+      // Expand the WebApp
+      WebApp.expand();
+  
+      const user = WebApp.initDataUnsafe?.user;
+      if (user) {
+        setUserId(user.id);
+      } else {
+        console.error('User data is not available.');
+      }
+    } else {
+      console.error('Telegram WebApp script is not loaded.');
+    }
+  }, []);
+
   // Function to add tasks
   const addTasks = async () => {
     try {

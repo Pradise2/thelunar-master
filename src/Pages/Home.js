@@ -23,6 +23,25 @@ const Home = () => {
   const morrButtonShowCount = 20; // Show MORRR!!! button after 6 clicks
 
   useEffect(() => {
+    // Check if Telegram WebApp is available
+    if (window.Telegram && window.Telegram.WebApp) {
+      const { WebApp } = window.Telegram;
+      
+      // Expand the WebApp
+      WebApp.expand();
+  
+      const user = WebApp.initDataUnsafe?.user;
+      if (user) {
+        setUserId(user.id);
+      } else {
+        console.error('User data is not available.');
+      }
+    } else {
+      console.error('Telegram WebApp script is not loaded.');
+    }
+  }, []);
+
+  useEffect(() => {
     const fetchData = async (id) => {
       try {
         const res = await axios.get(`http://localhost:5000/home/${id}`);
