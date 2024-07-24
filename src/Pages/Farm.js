@@ -186,7 +186,11 @@ const Farm = () => {
           {buttonText}
         </button>
       </div>
+      <div className="w-full max-w-md bg-zinc-900 fixed bottom-0 left-0 flex justify-around py-1">
+        <Footer />
+        </div>
     </div>
+    
   );
 };
 
