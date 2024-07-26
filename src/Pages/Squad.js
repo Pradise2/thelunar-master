@@ -8,6 +8,7 @@ import axios from 'axios';
 const Squad = () => {
   const [copied, setCopied] = useState(false);
   const [userId, setUserId] = useState("003");
+  const [username, setUserName] = useState(null)
   const [squadData, setSquadData] = useState(null);
   const [homeData, setHomeData] = useState(null);
   const [showRCSquad, setShowRCSquad] = useState(false);
@@ -25,6 +26,7 @@ const Squad = () => {
       const user = WebApp.initDataUnsafe?.user;
       if (user) {
         setUserId(user.id);
+        setUserName(user.username)
       } else {
         console.error('User data is not available.');
       }
@@ -51,6 +53,7 @@ const Squad = () => {
       try {
         const response = await axios.post(`http://localhost:5000/squad/add`, {
           userId,
+          username,
         });
         console.log("Initial user created:", response.data);
         return response.data;

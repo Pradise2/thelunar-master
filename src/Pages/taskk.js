@@ -1,296 +1,217 @@
 import React, { useState, useEffect } from 'react';
 import Footer from '../Component/Footer';
-import './Spinner.css';
-import { ClipLoader } from 'react-spinners';
-import { addUserTasks, getUserTasks, updateHomeBalance, getUserFromHome } from '../utils/firestoreFunctions';
+import FormattedTime from '../Component/FormattedTime';
 import './bg.css';
-import RCTasks from '../Component/RCTasks';
-import { motion, AnimatePresence } from 'framer-motion';
-import logo from './logo.png'
+import { ClipLoader } from 'react-spinners';
+import axios from 'axios';
 
-const Tasks = () => {
-  const [userData, setUserData] = useState(null);
-  const [userId, setUserId] = useState("743737380"); // Replace with dynamic ID if possible
-  const [taskFilter, setTaskFilter] = useState('new');
-  const [loadingTask, setLoadingTask] = useState(null);
+const Farm = () => {
+  const [data, setData] = useState([]);
+  const [farmData, setFarmData] = useState([]);
   const [homeData, setHomeData] = useState(null);
-  const [taskReadyToClaim, setTaskReadyToClaim] = useState(null);
-  const [showRCTasks, setShowRCTasks] = useState(false);
-  const [selectedTask, setSelectedTask] = useState(null); // New state for selected task
-  const [showGoButton, setShowGoButton] = useState(false); // New state for showing "Go" button
-  const [loading, setLoading] = useState(true); // New state for loading
+  const [username, setUserName] = useState(null);
+  const [userId, setUserId] = useState("003");
+  const [loading, setLoading] = useState(true);
+  const [isFarming, setIsFarming] = useState(false);
+  const [value, setValue] = useState(0);
+  const [isClaimable, setIsClaimable] = useState(false);
+  const [buttonText, setButtonText] = useState("Start");
 
-  const tasks = [
-    { id: 1, title: 'Invite 5 Friends', reward: 15000, link: "https://youtube.com" },
-    { id: 2, title: 'Complete Profile', reward: 5000, link: "https://example.com" },
-    { id: 3, title: 'Join Community', reward: 10000, link: "https://example.com" },
-  ];
 
-  window.Telegram.WebApp.expand();
-
-  useEffect(() => {
-    if (window.Telegram && window.Telegram.WebApp) {
-      const user = window.Telegram.WebApp.initDataUnsafe?.user;
-      if (user) {
-        setUserId(user.id);
-      } else {
-        console.error('User data is not available.');
-      }
-    } else {
-      console.error('Telegram WebApp script is not loaded.');
-    }
-  }, []);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const data = await getUserTasks(userId);
-        if (data) {
-          setUserData(data);
-          if (data.taskFilter) {
-            setTaskFilter(data.taskFilter);
-          }
-        } else {
-          const initialData = {
-            TasksComplete: {},
-            TasksStatus: {},
-          };
-          tasks.forEach(task => {
-            initialData.TasksComplete[task.id] = false; // Set each task's TasksComplete to false initially
-            initialData.TasksStatus[task.id] = 'start'; // Set each task's TasksStatus to 'start' initially
-          });
-          await addUserTasks(userId, initialData);
-          setUserData(initialData);
-        }
-        setLoading(false); // Data fetching completed
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setLoading(false); // Data fetching completed even if there is an error
-      }
-    };
-
-    fetchData();
-  }, [userId]);
-
-  useEffect(() => {
-    const fetchHomeData = async () => {
-      const data = await getUserFromHome(userId);
-      setHomeData(data);
-    };
-
-    fetchHomeData();
-  }, [userId]);
-
-  useEffect(() => {
-    const saveUserData = async () => {
-      if (userId && userData) {
-        try {
-          await addUserTasks(userId, userData);
-        } catch (error) {
-          console.error('Error saving data:', error);
-        }
-      }
-    };
-
-    const handleBeforeUnload = (e) => {
-      saveUserData();
-      e.preventDefault();
-      e.returnValue = '';
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    const saveInterval = setInterval(saveUserData, 10000);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      clearInterval(saveInterval);
-      saveUserData();
-    };
-  }, [userId, userData]);
-
-  const handleClaimClick = async (taskId, reward) => {
-    const task = tasks.find(t => t.id === taskId);
-
-    // Vibrate when claiming
-    if (navigator.vibrate) {
-      navigator.vibrate(500); // Vibrate for 500ms
-    }
-
-    // Update TasksComplete to true for the clicked task
-    setUserData(prevData => ({
-      ...prevData,
-      TasksComplete: {
-        ...prevData.TasksComplete,
-        [taskId]: true,
-      },
-      TasksStatus: {
-        ...prevData.TasksStatus,
-        [taskId]: 'completed',
-      }
-    }));
-
-    // Update HomeBalance with the reward
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const updatedHomeData = await getUserFromHome(userId); // Fetch latest home data to ensure up-to-date balance
-      const newHomeBalance = updatedHomeData.HomeBalance + reward;
-      await updateHomeBalance(userId, newHomeBalance);
-      setHomeData(prevData => ({
-        ...prevData,
-        HomeBalance: newHomeBalance,
-      }));
-      setSelectedTask(task); // Set the selected task
-      setShowRCTasks(true);
-
-      // Show "Go" button after claim is clicked
-      setShowGoButton(true);
-
-      // Hide RewardCard after 2 seconds
-      setTimeout(() => setShowRCTasks(false), 2000);
-
-      console.log(`HomeBalance updated with ${reward} LAR`);
-    } catch (error) {
-      console.error('Error updating HomeBalance:', error);
+      const response = await axios.get(`https://lunarapp.thelunarcoin.com/backend/api/farm/${userId}`);
+      setFarmData(response.data);
+      setLoading(false);
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        createInitialUser();
+      } else {
+        console.error('Error fetching home data:', err);
+        setError(`Failed to fetch data. Error: ${err.message}`);
+        setLoading(false);
+      }
     }
   };
 
-  const handleStartClick = (taskId, link) => {
-    setLoadingTask(taskId);
+  const createInitialUser = async () => {
+    try {
+      const res = await axios.post(`https://lunarapp.thelunarcoin.com/backend/api/farm/add`, { userId });
+      console.log("Initial user created:", res.data);
+      setFarmData(res.data);
+    } catch (err) {
+      if (err.response && err.response.status === 409) {
+        fetchData();
+      } else {
+        console.error('Error creating initial user:', err);
+        setError(`Failed to create initial user. Error: ${err.message}`);
+        setLoading(false);
+      }
+    }
+  };
 
-    // Open the link in a new tab
-    window.open(link, '_blank');
+  const fetchHomeData = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`https://lunarapp.thelunarcoin.com/backend/api/home/${userId}`);
+      setHomeData(response.data);
+      setLoading(false);
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+      } else {
+        console.error('Error fetching home data:', err);
+        setError(`Failed to fetch data. Error: ${err.message}`);
+        setLoading(false);
+      }
+    }
+  };
 
-    // Simulate loading delay
-    setTimeout(() => {
-      setLoadingTask(null);
-      setTaskReadyToClaim(taskId);
-      setUserData(prevData => ({
-        ...prevData,
-        TasksStatus: {
-          ...prevData.TasksStatus,
-          [taskId]: 'claim',
+    const updateFarmTimeAndReward = (data) => {
+      const now = Math.floor(Date.now() / 1000);
+      const updatedData = data.map((user) => {
+        const elapsed = now - user.LastActiveFarmTime;
+        if (user.farmTime > 0) {
+          const timeSpent = Math.min(elapsed, user.farmTime);
+          user.farmTime = Math.max(user.farmTime - elapsed, 0);
+          user.farmReward += timeSpent * 0.1;
         }
-      }));
-    }, 5000); // Simulate loading time, change as needed
+        user.LastActiveFarmTime = now;
+        return user;
+      });
+      setData(updatedData);
+    };
+
+    const initializeData = async () => {
+      setLoading(true);
+      try {
+        const fetchedHomeData = await fetchHomeData();
+        if (fetchedHomeData) {
+          setHomeData(fetchedHomeData);
+        }
+
+        const fetchedData = await fetchData();
+        if (fetchedData) {
+          updateFarmTimeAndReward(fetchedData);
+        } else {
+          await createInitialUser(userId);
+          const newData = await fetchData();
+          updateFarmTimeAndReward(newData);
+        }
+      } catch (err) {
+        console.error('Error initializing data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeData();
+  }, [userId]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setData((prevData) =>
+        prevData.map((user) => {
+          if (user.farmTime > 0 && isFarming) {
+            const updatedUser = {
+              ...user,
+              farmTime: user.farmTime - 1,
+              farmReward: user.farmReward + 0.1,
+            };
+            updateUserInDatabase(updatedUser);
+            return updatedUser;
+          } else if (user.farmTime <= 0 && isFarming) {
+            setIsFarming(false);
+            setIsClaimable(true);
+            setButtonText("Claim");
+            return { ...user, farmTime: 0 };
+          }
+          return user;
+        })
+      );
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isFarming]);
+
+  const updateUserInDatabase = async (user) => {
+    try {
+      await axios.post(`http://localhost:5000/farm/update/${user.userId}`, user);
+    } catch (err) {
+      console.error('Error updating user:', err);
+    }
   };
 
-  const filteredTasks = tasks.filter(task => {
-    if (taskFilter === 'new') {
-      return userData && userData.TasksStatus[task.id] !== 'completed';
-    } else if (taskFilter === 'completed') {
-      return userData && userData.TasksStatus[task.id] === 'completed';
+  const handleStart = () => {
+    setIsFarming(true);
+    setIsClaimable(false);
+    setButtonText("Farming...");
+  };
+
+  const handleClaim = async (user) => {
+    if (user.farmReward > 0) {
+      const updatedUser = {
+        ...user,
+        farmTotal: user.farmTotal + user.farmReward, // Update farmTotal
+        farmReward: 0, // Reset farmReward after claiming
+        farmTime: 60, // Reset farmTime after claiming
+        LastActiveFarmTime: Math.floor(Date.now() / 1000),
+      };
+
+      setValue(value + user.farmReward);
+      setData((prevData) =>
+        prevData.map((u) => (u.userId === user.userId ? updatedUser : u))
+      );
+      setIsClaimable(false);
+      setButtonText("Start");
+      await updateUserInDatabase(updatedUser);
     }
-    return true;
-  });
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-cover text-white p-4">
         <div className="flex flex-col items-center space-y-4">
-          <h1 className="text-white text-4xl font-normal">
-            <ClipLoader
-              color="#FFD700" // Golden color
-              size={60}
-              speedMultiplier={1}
-            />
-          </h1>
+          <ClipLoader color="#FFD700" size={60} speedMultiplier={1} />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-cover min-h-screen flex flex-col">
-      <div className="flex-grow overflow-y-auto bg-cover text-center text-white p-4">
-        <h1 className="text-2xl font-bold">Complete the mission,<br /> earn the commission!</h1>
-        <p className="text-zinc-500 mt-2">But hey, only qualified actions unlock the <br /> LAR galaxy! ✨</p>
-        <div className="flex justify-center w-full mt-4">
-          <button 
-            className={`py-2 bg-opacity-70 text-center text-sm w-full rounded-2xl ${taskFilter === 'new' ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-400'}`}
-            onClick={() => setTaskFilter('new')}
-          > 
-            New
-          </button>
-          <button 
-            className={`bg-opacity-70 py-2 text-center text-sm w-full rounded-2xl ${taskFilter === 'completed' ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-400'}`}
-            onClick={() => setTaskFilter('completed')}
-          >
-            Completed
-          </button>
-        </div>
-        <div className="mt-6 space-y-4">
-          {filteredTasks.length === 0 && taskFilter === 'completed' && (
-            <div>No completed tasks yet.</div>
-          )}
-          {filteredTasks.map((task) => (
-            <div key={task.id} className="bg-zinc-800 bg-opacity-70 p-4 rounded-xl flex justify-between items-center">
-              <div>
-                <p className="font-semibold">{task.title}</p>
-                <p className="text-golden-moon flex">            
-                  <img aria-hidden="true" alt="team-icon" src={logo} className="mr-2" width='25' height='5'/>
-                {task.reward.toLocaleString()} LAR</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                {userData.TasksStatus[task.id] === 'start' && (
-                  <button 
-                    onClick={() => handleStartClick(task.id, task.link)} 
-                    className="bg-golden-moon text-white py-2 px-4 rounded-xl"
-                    disabled={loadingTask === task.id}
-                  >
-                    {loadingTask === task.id ? (
-                      <div className="spinner-border spinner-border-sm"></div>
-                    ) : (
-                      'Start'
-                    )}
-                    </button>
-                  )}
-                  {userData.TasksStatus[task.id] === 'claim' && (
-                    <button 
-                      onClick={() => handleClaimClick(task.id, task.reward)} 
-                      className="bg-golden-moon text-white py-2 px-4 rounded-xl"
-                    >
-                      Claim
-                    </button>
-                  )}
-                  {userData.TasksStatus[task.id] === 'completed' && (
-                    <button 
-                      className="bg-golden-moon text-white py-2 px-4 rounded-xl"
-                      disabled
-                    >
-                      Completed
-                    </button>
-                  )}
-                  {showGoButton && userData.TasksStatus[task.id] === 'completed' && (
-                    <a href={task.link} target="_blank" rel="noopener noreferrer" className="bg-primary text-primary-foreground py-2 px-4 text-golden-moon rounded-lg">
-                      Go
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-  
-        <AnimatePresence>
-          {showRCTasks && selectedTask && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50"
-              onClick={() => setShowRCTasks(false)} // Click anywhere to close RewardCard
-            >
-              <RCTasks onClose={() => setShowRCTasks(false)} task={selectedTask} />
-            </motion.div>
-          )}
-        </AnimatePresence>
-  
-        <div className="w-full max-w-md sticky bottom-0 left-0 flex text-white bg-zinc-900 justify-around py-1">
-          <Footer />
-        </div>
+    <div className="min-h-screen bg-cover text-white flex flex-col items-center p-4 space-y-3">
+      <h1 className="text-4xl font-normal">Farm LAR tokens</h1>
+      <p className="text-4xl font-normal text-golden-moon">
+          {data[0]?.farmTotal.toFixed(1)}
+        </p>
+      <p className="text-zinc-400 text-center">
+        Propel yourself by farming LAR!<br />
+        Claim more LAR and reach for the stars!
+      </p>
+      <div className="bg-zinc-800 bg-opacity-70 text-red-700 w-full max-w-md px-4 py-2 rounded-xl text-center">
+        Current farming era: <span className="text-yellow-900">⏰</span> <FormattedTime time={data[0]?.farmTime} />
       </div>
-    );
-  };
-  
-  export default Tasks;
-  
+      <div className="bg-zinc-800 bg-opacity-70 text-card-foreground p-2 rounded-3xl w-full max-w-md text-center min-h-[40vh] flex flex-col justify-center space-y-5">
+      
+        <p className="text-zinc-400 text-muted-foreground">Farming era reward</p>
+        <p className="text-4xl font-normal text-primary">
+          {data[0]?.farmReward.toFixed(1)} <span className="text-golden-moon">LAR</span>
+        </p>
+      </div>
+      <div className="space-y-6 w-full flex items-center flex-col">
+        <button
+          onClick={() => (isClaimable ? handleClaim(data[0]) : handleStart())}
+          className={`text-white hover:bg-secondary/80 px-6 py-3 rounded-xl w-full max-w-md ${buttonText === "Farming..." ? "bg-zinc-800 bg-opacity-70" : "bg-gradient-to-r from-golden-moon"}`}
+        >
+          {buttonText}
+        </button>
+      </div>
+      <div className="w-full max-w-md bg-zinc-900 fixed bottom-0 left-0 flex justify-around py-1">
+        <Footer />
+        </div>
+    </div>
+    
+  );
+};
+
+export default Farm;
