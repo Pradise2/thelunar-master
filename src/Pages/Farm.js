@@ -12,7 +12,7 @@ const Farm = () => {
     farmStatus: 'start',
     farmTotal: "0.0"
   });
-  const [userId, setUserId] = useState("681236610");
+  const [userId, setUserId] = useState(null);
   const [username, setUserName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFarming, setIsFarming] = useState(false);
