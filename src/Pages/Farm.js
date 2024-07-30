@@ -12,7 +12,7 @@ const Farm = () => {
     farmStatus: 'start',
     farmTotal: "0.0"
   });
-  const [userId, setUserId] = useState("6819236610");
+  const [userId, setUserId] = useState("681236610");
   const [username, setUserName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFarming, setIsFarming] = useState(false);
@@ -122,18 +122,14 @@ const Farm = () => {
     setIsFarming(true);
     setButtonText("Farming...");
     try {
-      const currentTime = Math.floor(Date.now() / 1000);
-      const payload = {
+      await axios.put(`https://lunarapp.thelunarcoin.com/backend/api/farm/start`, ({
         userId,
         farmTime: farmData.farmTime || 21600,
         farmReward: farmData.farmReward || "0.00",
         farmStatus: 'farming',
-        lastActiveFarmTime: currentTime,
-      };
-
-      console.log('Payload for Start:', payload); // Debugging log
-
-      await axios.put(`https://lunarapp.thelunarcoin.com/backend/api/farm/start`, payload);
+        lastActiveFarmTime: Math.floor(Date.now() / 1000)
+      
+      }));
 
       startFarmingTimer(farmData.farmTime, parseFloat(farmData.farmReward));
     } catch (err) {
