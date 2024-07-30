@@ -7,7 +7,7 @@ const token = process.env.TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
 const bot = new Telegraf(token);
 
 // Web App Link
-const web_link = 'https://lunarapp.thelunarcoin.com/';
+const web_link = 'https://thelun.vercel.app/';
 
 // Start Handler
 bot.start(async (ctx) => {

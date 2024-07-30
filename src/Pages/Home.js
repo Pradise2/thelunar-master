@@ -10,7 +10,7 @@ import './bg.css';
 import axios from 'axios';
 
 const Home = () => {
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState("34");
   const [username, setUserName] = useState(null);
   const [homeData, setHomeData] = useState({ });
   const [loading, setLoading] = useState(true);
