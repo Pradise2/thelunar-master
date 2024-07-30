@@ -10,15 +10,9 @@ import './bg.css';
 import axios from 'axios';
 
 const Home = () => {
-  const [userId, setUserId] = useState('743737380');
-  const [homeData, setHomeData] = useState({
-    tapTime: 14400,
-    tapPoint: 100,
-    homeBalance: 0,
-    tapClaim: 0,
-    lastActiveTime: Math.floor(Date.now() / 1000),
-  });
-
+  const [userId, setUserId] = useState(null);
+  const [username, setUserName] = useState(null);
+  const [homeData, setHomeData] = useState({ });
   const [loading, setLoading] = useState(true);
   const [isVibrating, setIsVibrating] = useState(false);
   const [showTapButton, setShowTapButton] = useState(false);
@@ -28,15 +22,19 @@ const Home = () => {
 
   const tapButtonShowCount = 12;
   const morrButtonShowCount = 20;
-
+  const initialTapGame = 0;
+  const tapGameThreshold = 100;
+  const defaultTapPoint = 100;
+  
   useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
       const { WebApp } = window.Telegram;
       WebApp.expand();
 
-      const user = WebApp.initData?.user;
+      const user = WebApp.initDataUnsafe?.user;
       if (user) {
         setUserId(user.id);
+        setUserName(user.username);
       } else {
         console.error('User data is not available.');
       }
@@ -63,6 +61,7 @@ const Home = () => {
       const elapsed = now - lastActiveTime;
       if (elapsed > 0) {
         const newTapTime = remainingTapTime - elapsed;
+        
         setHomeData(prevData => ({
           ...prevData,
           tapTime: newTapTime,
@@ -74,12 +73,17 @@ const Home = () => {
       }
 
       // Load tapPoint and tapClaim from localStorage
-      const savedTapPoint = parseFloat(localStorage.getItem(`tapPoint_${userId}`)) || 100;
+      // Determine if tapPoint should be reset
+      const savedTapPoint = parseFloat(localStorage.getItem(`tapPoint_${userId}`)) || defaultTapPoint;
       const savedTapClaim = parseFloat(localStorage.getItem(`tapClaim_${userId}`)) || 0;
-      setHomeData(prevData => ({
+      const savedTapGame = parseFloat(localStorage.getItem(`tapGame_${userId}`)) || initialTapGame;
+
+      const shouldResetTapPoint = savedTapGame - savedTapPoint >= tapGameThreshold;
+ setHomeData(prevData => ({
         ...prevData,
-        tapPoint: savedTapPoint,
+        tapPoint: shouldResetTapPoint ? 0 : savedTapPoint,
         tapClaim: savedTapClaim,
+        tapGame: savedTapGame,
       }));
     } catch (err) {
       if (err.response && err.response.status === 404) {
@@ -120,7 +124,8 @@ const Home = () => {
 
           const updateData = {
             ...homeData,
-            tapPoint: 100,
+            tapPoint: defaultTapPoint,
+            tapGame: initialTapGame,
             tapTime: 14400,
           };
 
@@ -141,16 +146,20 @@ const Home = () => {
       if (navigator.vibrate) navigator.vibrate(100);
 
       const numericTapClaim = typeof homeData.tapClaim === 'string' ? parseFloat(homeData.tapClaim) : homeData.tapClaim;
+      const updatedTapGame = homeData.tapGame + numericTapClaim; // Increase tapGame by tapClaim
+
 
       const updatedUser = {
         ...homeData,
-        tapPoint: homeData.tapPoint - 1,
+       tapPoint: homeData.tapPoint - 1,
         tapClaim: numericTapClaim + 1,
+        tapGame: updatedTapGame, // Update tapGame
       };
 
       // Update local storage
       localStorage.setItem(`tapPoint_${userId}`, updatedUser.tapPoint);
       localStorage.setItem(`tapClaim_${userId}`, updatedUser.tapClaim);
+      localStorage.setItem(`tapGame_${userId}`, updatedUser.tapGame);
 
       setClickCount(prevCount => {
         const newCount = prevCount + 1;
@@ -190,6 +199,7 @@ const Home = () => {
           ...homeData,
           homeBalance: numericHomeBalance + numericTapClaim,
           tapClaim: 0,
+          tapGame: homeData.tapGame, // Retain tapGame
         };
 
         setShowRewardCard(true);
@@ -206,7 +216,8 @@ const Home = () => {
               // Update local storage
               localStorage.setItem(`tapPoint_${userId}`, updatedUser.tapPoint);
               localStorage.setItem(`tapClaim_${userId}`, updatedUser.tapClaim);
-              setHomeData(updatedUser);
+              localStorage.setItem(`tapGame_${userId}`, updatedUser.tapGame);
+               setHomeData(updatedUser);
             })
             .catch(err => console.error('Error updating data:', err));
         }, 2000);

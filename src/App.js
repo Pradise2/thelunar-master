@@ -12,10 +12,10 @@ const App = () => {
     <TotalBalProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/squad" element={<Squad />} />
-          <Route path="/farm" element={<Farm />} />
+          <Route exact path="/" element={<Home />} />
+          <Route exact path="/tasks" element={<Tasks />} />
+          <Route exact path="/squad" element={<Squad />} />
+          <Route exact path="/farm" element={<Farm />} />
         </Routes>
       </BrowserRouter>
     </TotalBalProvider>

@@ -6,7 +6,7 @@ import axios from 'axios';
 
 const Squad = () => {
   const [copied, setCopied] = useState(false);
-  const [userId, setUserId] = useState("743737380");
+  const [userId, setUserId] = useState();
   const [username, setUserName] = useState(null);
   const [userSquad, setUserSquad] = useState(null);
   const [squads, setSquads] = useState([]); // Initialize as an empty array
@@ -24,9 +24,10 @@ const Squad = () => {
       // Expand the WebApp
       WebApp.expand();
   
-      const user = WebApp.initData?.user;
+      const user = WebApp.initDataUnsafe?.user;
       if (user) {
         setUserId(user.id);
+        setUserName(user.username);
       } else {
         console.error('User data is not available.');
       }

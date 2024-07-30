@@ -8,10 +8,12 @@ import axios from 'axios';
 const Farm = () => {
   const [farmData, setFarmData] = useState({
     farmTime: 21600,
-    lastActiveTime: Math.floor(Date.now() / 1000),
-    farmReward: 0,
+    farmReward: "0.00",
+    farmStatus: 'start',
+    farmTotal: "0.0"
   });
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState("6819236610");
+  const [username, setUserName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFarming, setIsFarming] = useState(false);
   const [isClaimable, setIsClaimable] = useState(false);
@@ -23,9 +25,11 @@ const Farm = () => {
     if (window.Telegram && window.Telegram.WebApp) {
       const { WebApp } = window.Telegram;
       WebApp.expand();
-      const user = WebApp.initData?.user;
+
+      const user = WebApp.initDataUnsafe?.user;
       if (user) {
         setUserId(user.id);
+        setUserName(user.username);
       } else {
         console.error('User data is not available.');
       }
@@ -36,14 +40,20 @@ const Farm = () => {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
       const response = await axios.get(`https://lunarapp.thelunarcoin.com/backend/api/farm/${userId}`);
       console.log('Fetch Data Response:', response.data); // Debugging log
       const now = Math.floor(Date.now() / 1000);
 
       const lastActiveFarmTime = parseInt(response.data.lastActiveFarmTime, 10) || now;
-      let remainingFarmTime = parseInt(response.data.farmTime, 10) || 21600;
-      let farmReward = parseFloat(response.data.farmReward) || 0.0;
+      let remainingFarmTime = parseInt(response.data.farmTime, 10);
+      let farmReward = parseFloat(response.data.farmReward);
+
+      if (isNaN(remainingFarmTime)) {
+        remainingFarmTime = 21600;
+      }
+      if (isNaN(farmReward)) {
+        farmReward = 0.00;
+      }
 
       if (response.data.farmStatus === 'farming') {
         const elapsed = now - lastActiveFarmTime;
@@ -80,9 +90,10 @@ const Farm = () => {
       } else {
         console.error('Error fetching farm data:', err);
         setError(`Failed to fetch data. Error: ${err.message}`);
+        setLoading(false); // Stop loading if there's an error
       }
     } finally {
-      setLoading(false);
+      setLoading(false); // Ensure loading stops after fetching or error
     }
   };
 
@@ -90,16 +101,20 @@ const Farm = () => {
     try {
       const res = await axios.post(`https://lunarapp.thelunarcoin.com/backend/api/farm/add`, { userId });
       console.log("Initial user created:", res.data); // Debugging log
-      setFarmData(res.data);
+      setFarmData({
+        ...res.data,
+        farmTime: 21600,
+        farmReward: "0.00",
+      });
+      setLoading(false); // Stop loading after initial user is created
     } catch (err) {
       if (err.response && err.response.status === 409) {
         fetchData();
       } else {
         console.error('Error creating initial user:', err);
         setError(`Failed to create initial user. Error: ${err.message}`);
+        setLoading(false); // Stop loading if there's an error
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -111,7 +126,7 @@ const Farm = () => {
       const payload = {
         userId,
         farmTime: farmData.farmTime || 21600,
-        farmReward: farmData.farmReward || "0.0",
+        farmReward: farmData.farmReward || "0.00",
         farmStatus: 'farming',
         lastActiveFarmTime: currentTime,
       };
@@ -134,23 +149,23 @@ const Farm = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-  
+
     const startTime = Math.floor(Date.now() / 1000);
-  
+
     intervalRef.current = setInterval(() => {
       setFarmData((prevData) => {
         const currentTime = Math.floor(Date.now() / 1000);
         const elapsed = currentTime - startTime;
         const newFarmTime = Math.max(0, initialFarmTime - elapsed);
         const newFarmReward = parseFloat(prevData.farmReward) + 0.01;
-  
+
         if (newFarmTime === 0) {
           clearInterval(intervalRef.current);
           setIsFarming(false);
           setIsClaimable(true);
           setButtonText("Claim");
         }
-  
+
         return {
           ...prevData,
           farmTime: newFarmTime,
@@ -167,7 +182,7 @@ const Farm = () => {
       const updatedFarmData = {
         ...farmData,
         farmTotal: updatedFarmTotal,
-        farmReward: "0.0",
+        farmReward: "0.00",
         farmTime: 21600,
         lastActiveFarmTime: 0,
         farmStatus: 'start'
