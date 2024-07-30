@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const RewardCard = () => {
-  const [userId, setUserId] = useState("020");
+  const [userId, setUserId] = useState(null);
   const [homeData, setHomeData] = useState([]);
 
   useEffect(() => {
@@ -35,7 +35,7 @@ const RewardCard = () => {
             </button>
           </div>
         </div>
-      ))}
+    
     </div>
   );
 };

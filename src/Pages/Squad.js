@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import Footer from '../Component/Footer';
 import { ClipLoader } from 'react-spinners';
 import './bg.css';
-import RCSquad from '../Component/RCSquad';
 import axios from 'axios';
 
 const Squad = () => {
   const [copied, setCopied] = useState(false);
-  const [userId, setUserId] = useState("003");
-  const [username, setUserName] = useState(null)
-  const [squadData, setSquadData] = useState(null);
-  const [homeData, setHomeData] = useState(null);
+  const [userId, setUserId] = useState("743737380");
+  const [username, setUserName] = useState(null);
+  const [userSquad, setUserSquad] = useState(null);
+  const [squads, setSquads] = useState([]); // Initialize as an empty array
   const [showRCSquad, setShowRCSquad] = useState(false);
-  const [loading, setLoading] = useState(true); // Initialize loading as true
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  
 
   useEffect(() => {
     // Check if Telegram WebApp is available
@@ -23,10 +24,9 @@ const Squad = () => {
       // Expand the WebApp
       WebApp.expand();
   
-      const user = WebApp.initDataUnsafe?.user;
+      const user = WebApp.initData?.user;
       if (user) {
         setUserId(user.id);
-        setUserName(user.username)
       } else {
         console.error('User data is not available.');
       }
@@ -38,39 +38,23 @@ const Squad = () => {
   useEffect(() => {
     const fetchSquadData = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/squad/${userId}`);
-        setSquadData(response.data);
-        setLoading(false);
+        const response = await axios.get(`https://lunarapp.thelunarcoin.com/backend/api/squad/${userId}`);
+        const { userSquad, squads } = response.data;
+        setUserSquad(userSquad);
+        setSquads(squads || []); // Ensure squads is an array
+        console.log('Fetched squad data:', { userSquad, squads }); // Log the data
       } catch (error) {
         console.error('Error fetching squad data:', error);
         setError('Error fetching squad data');
-        await createInitialUser();
-        await fetchSquadData();
+        // Consider implementing an error retry mechanism or user feedback
+      } finally {
+        setLoading(false);
       }
     };
 
-    const createInitialUser = async () => {
-      try {
-        const response = await axios.post(`http://localhost:5000/squad/add`, {
-          userId,
-          username,
-        });
-        console.log("Initial user created:", response.data);
-        return response.data;
-      } catch (err) {
-        console.error('Error creating initial user:', err);
-        setError('Error creating initial user');
-        return null;
-      }
-    };
-
-    const fetchData = async () => {
-      setLoading(true);
-      await fetchSquadData();
-      setLoading(false);
-    };
-
-    fetchData();
+    if (userId) {
+      fetchSquadData();
+    }
   }, [userId]);
 
   const copyToClipboard = () => {
@@ -99,42 +83,25 @@ const Squad = () => {
     }
   };
 
-  const calculateTotal = () => {
-    if (homeData && squadData) {
-      return (homeData.HomeBalance || 0) + (squadData.totalBalance || 0);
-    }
-    return 0;
-  };
-
   const handleClaim = async () => {
-    if (squadData?.referralEarnings > 0) {
-      // Vibrate when claiming
-      if (navigator.vibrate) {
-        navigator.vibrate(500); // Vibrate for 500ms
-      }
-
-      const updatedTotalBalance = (squadData.totalBalance || 0) + (squadData.referralEarnings || 0);
-      const updatedSquadData = {
-        ...squadData,
-        totalBalance: updatedTotalBalance,
-        referralEarnings: 0,
-      };
-
-      setSquadData(updatedSquadData);
-      setShowRCSquad(true);
-
-      // Hide RewardCard after 2 seconds
-      setTimeout(() => setShowRCSquad(false), 2000);
-
-      // If `addUserToSquad` is not defined or not needed, you can remove this block.
-      /*
-      try {
-        await addUserToSquad(userId, updatedSquadData);
-      } catch (error) {
-        console.error('Error updating squad data:', error);
-      }
-      */
+    // Vibrate when claiming
+    if (navigator.vibrate) {
+      navigator.vibrate(500); // Vibrate for 500ms
     }
+
+    try {
+      const response = await axios.get(`https://lunarapp.thelunarcoin.com/backend/api/squad/update/${userId}`);
+      console.log('Claim response:', response.data);
+    } catch (error) {
+      console.error('Error during claim:', error);
+      setError('Error during claim');
+      return;
+    }
+
+    setShowRCSquad(true);
+
+    // Hide RewardCard after 2 seconds
+    setTimeout(() => setShowRCSquad(false), 2000);
   };
 
   if (loading) {
@@ -153,6 +120,14 @@ const Squad = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-cover text-white p-4">
+        <p className="text-red-500 text-lg">{error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-cover text-white flex flex-col items-center p-4 space-y-4">
       <h1 className="text-center text-4xl font-normal">
@@ -161,13 +136,13 @@ const Squad = () => {
       <div className="bg-zinc-800 bg-opacity-70 p-4 rounded-xl w-full max-w-md space-y-2">
         <p className="text-zinc-400 text-center">Total squad balance</p>
         <p className="text-center text-3xl font-normal">
-          {(calculateTotal() || 0).toLocaleString()} <span className="text-golden-moon">LAR</span>
+          {userSquad?.totalSquad} <span className="text-golden-moon">LAR</span>
         </p>
       </div>
       <div className="bg-zinc-800 bg-opacity-70 p-4 rounded-xl w-full max-w-md space-y-2">
         <p className="text-zinc-400 text-center">Your rewards</p>
         <p className="text-center text-3xl font-normal">
-          {(squadData?.referralEarnings || 0).toLocaleString()} <span className="text-golden-moon">LAR</span>
+          {userSquad?.totalBalance - userSquad?.claimedReferral} <span className="text-golden-moon">LAR</span>
         </p>
         <p className="text-sm mb-4 text-center">10% of your friends' earnings</p>
         <div className="flex p-1 justify-center">
@@ -180,17 +155,17 @@ const Squad = () => {
             <img aria-hidden="true" alt="team-icon" src="https://openui.fly.dev/openui/24x24.svg?text=👥" className="mr-2" />
             Your team
           </p>
-          <p>{(squadData?.referralCount || 0)} users</p>
+          <p>{userSquad?.referralCount} users</p>
         </div>
         <div>
-          {squadData?.referrals && squadData.referrals.length > 0 ? (
-            squadData.referrals.map((referral, index) => (
+          {squads.length > 0 ? (
+            squads.map((referral, index) => (
               <div key={index} className="flex font-normal text-sm justify-between items-center px-3">
                 <p className="flex items-center">
                   <img aria-hidden="true" alt="user-icon" src="https://openui.fly.dev/openui/24x24.svg?text=👤" className="mr-2" />
-                  {referral.username}
+                  {referral.newUserName}
                 </p>
-                <p className="text-primary">{(referral.referralBonus || 0).toLocaleString()} <span className="text-golden-moon">LAR</span></p>
+                <p className="text-primary">{referral.referralEarning} <span className="text-golden-moon">LAR</span></p>
               </div>
             ))
           ) : (
@@ -207,8 +182,8 @@ const Squad = () => {
         </button>
       </div>
       <div className="w-full max-w-md sticky bottom-0 left-0 flex text-white bg-zinc-900 justify-around py-1">
-          <Footer />
-        </div>
+        <Footer />
+      </div>
     </div>
   );
 };
