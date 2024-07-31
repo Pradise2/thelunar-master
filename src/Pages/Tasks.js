@@ -1,28 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Footer from '../Component/Footer';
-import './Spinner.css';
-import { ClipLoader } from 'react-spinners';
+import FormattedTime from '../Component/FormattedTime';
 import './bg.css';
-import RCTasks from '../Component/RCTasks';
-import { motion, AnimatePresence } from 'framer-motion';
-import logo from './logo.png';
+import { ClipLoader } from 'react-spinners';
 import axios from 'axios';
 
-const Tasks = () => {
+const Farm = () => {
+  const [farmData, setFarmData] = useState({});
   const [userId, setUserId] = useState(null);
   const [username, setUserName] = useState(null);
-  const [taskData, setTaskData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isFarming, setIsFarming] = useState(false);
+  const [isClaimable, setIsClaimable] = useState(false);
+  const [buttonText, setButtonText] = useState("Start");
   const [error, setError] = useState(null);
-  const [buttonLoading, setButtonLoading] = useState({});
-  const [taskFilter, setTaskFilter] = useState('new');
-  const [loadingTask, setLoadingTask] = useState(null);
+  const intervalRef = useRef(null);
 
-  // Fetch user data from Telegram WebApp
-  useEffect(() => {  
+  useEffect(() => {
     if (window.Telegram && window.Telegram.WebApp) {
       const { WebApp } = window.Telegram;
       WebApp.expand();
+
       const user = WebApp.initDataUnsafe?.user;
       if (user) {
         setUserId(user.id);
@@ -35,184 +33,192 @@ const Tasks = () => {
     }
   }, []);
 
-  // Fetch task data from the API whenever userId changes
+  const fetchData = async () => {
+    try {
+      const response = await axios.get(`https://lunarapp.thelunarcoin.com/backend/api/farm/${userId}`);
+      console.log('Fetch Data Response:', response.data); // Debugging log
+      const now = Math.floor(Date.now() / 1000);
+
+      const lastActiveFarmTime = parseInt(response.data.lastActiveFarmTime, 10) || now;
+      let remainingFarmTime = parseInt(response.data.farmTime, 10);
+      let farmReward = parseFloat(response.data.farmReward);
+
+      if (isNaN(remainingFarmTime)) {
+        remainingFarmTime = 21600;
+      }
+      if (isNaN(farmReward)) {
+        farmReward = 0.00;
+      }
+
+      if (response.data.farmStatus === 'farming') {
+        const elapsed = now - lastActiveFarmTime;
+        remainingFarmTime = Math.max(0, remainingFarmTime - elapsed);
+        farmReward += parseFloat((elapsed * 0.01).toFixed(2)); // Assuming reward calculation logic
+        if (remainingFarmTime === 0) {
+          setIsFarming(false);
+          setIsClaimable(true);
+          setButtonText("Claim");
+        } else {
+          setIsFarming(true);
+          setButtonText("Farming...");
+        }
+      }
+
+      setFarmData({
+        ...response.data,
+        farmTime: remainingFarmTime,
+        farmReward: farmReward.toFixed(2),
+      });
+
+      console.log('Processed Farm Data:', {
+        ...response.data,
+        farmTime: remainingFarmTime,
+        farmReward: farmReward.toFixed(2),
+      });
+
+      if (remainingFarmTime > 0 && response.data.farmStatus === 'farming') {
+        startFarmingTimer(remainingFarmTime, farmReward);
+      }
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        setError('User data not found.');
+      } else {
+        console.error('Error fetching farm data:', err);
+        setError(`Failed to fetch data. Error: ${err.message}`);
+      }
+    } finally {
+      setLoading(false); // Ensure loading stops after fetching or error
+    }
+  };
+
+  const handleStart = async () => {
+    setIsFarming(true);
+    setButtonText("Farming...");
+    try {
+      await axios.put(`https://lunarapp.thelunarcoin.com/backend/api/farm/start`, ({
+        userId,
+        farmTime: farmData.farmTime || 21600,
+        farmReward: farmData.farmReward || "0.00",
+        farmStatus: 'farming',
+        lastActiveFarmTime: Math.floor(Date.now() / 1000)
+      }));
+
+      startFarmingTimer(farmData.farmTime, parseFloat(farmData.farmReward));
+    } catch (err) {
+      console.error('Error starting farming:', err);
+      setError(`Failed to start farming. Error: ${err.message}`);
+      setIsFarming(false);
+      setButtonText("Start");
+    }
+  };
+
+  const startFarmingTimer = (initialFarmTime, initialFarmReward) => {
+    // Clear any existing interval to avoid multiple intervals running simultaneously
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    const startTime = Math.floor(Date.now() / 1000);
+
+    intervalRef.current = setInterval(() => {
+      setFarmData((prevData) => {
+        const currentTime = Math.floor(Date.now() / 1000);
+        const elapsed = currentTime - startTime;
+        const newFarmTime = Math.max(0, initialFarmTime - elapsed);
+        const newFarmReward = parseFloat(prevData.farmReward) + 0.01;
+
+        if (newFarmTime === 0) {
+          clearInterval(intervalRef.current);
+          setIsFarming(false);
+          setIsClaimable(true);
+          setButtonText("Claim");
+        }
+
+        return {
+          ...prevData,
+          farmTime: newFarmTime,
+          farmReward: newFarmReward.toFixed(2),
+          lastActiveFarmTime: startTime, // Update lastActiveFarmTime for tracking
+        };
+      });
+    }, 1000);
+  };
+
+  const handleClaim = async () => {
+    try {
+      const updatedFarmTotal = (parseFloat(farmData.farmTotal) + parseFloat(farmData.farmReward)).toFixed(1);
+      const updatedFarmData = {
+        ...farmData,
+        farmTotal: updatedFarmTotal,
+        farmReward: "0.00",
+        farmTime: 21600,
+        lastActiveFarmTime: 0,
+        farmStatus: 'start'
+      };
+
+      console.log('Farm Data Before Claim:', farmData);
+      console.log('Updated Farm Total:', updatedFarmTotal);
+      console.log('Updated Farm Data:', updatedFarmData);
+
+      const response = await axios.put(`https://lunarapp.thelunarcoin.com/backend/api/farm/claim`, { userId, ...updatedFarmData });
+      console.log('Backend Response:', response.data);
+
+      setFarmData(updatedFarmData);
+      setIsClaimable(false);
+      setButtonText("Start");
+    } catch (err) {
+      console.error('Error claiming reward:', err);
+      setError(`Failed to claim reward. Error: ${err.message}`);
+    } finally {
+      clearInterval(intervalRef.current);
+    }
+  };
+
   useEffect(() => {
     fetchData();
-  }, [userId]);
+    return () => clearInterval(intervalRef.current);
+  }, []);
 
-  // Fetch task data from the API
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.get(`https://lunarapp.thelunarcoin.com/backend/api/task/${userId}`);
-      setTaskData(response.data);
-    } catch (err) {
-      console.error('Error fetching task data:', err);
-      setError(`Failed to fetch data. Error: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle task actions (start/claim)
-  const handleButtonClick = async (taskId, action) => {
-    setButtonLoading(prevState => ({ ...prevState, [taskId]: true }));
-
-    if (action === 'start') {
-      const task = taskData.find(task => task.taskId === taskId);
-      const linkz = task.linkz.startsWith('http') ? task.linkz : `https://${task.linkz}`;
-      window.open(linkz, '_blank');
-
-      setTimeout(async () => {
-        try {
-          await axios.put(`https://lunarapp.thelunarcoin.com/backend/api/task/update`, {
-            userId: userId,
-            taskId: taskId,
-            status: 'claim'
-          }, {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
-          setTaskData(prevState =>
-            prevState.map(task =>
-              task.taskId === taskId ? { ...task, status: 'claim' } : task
-            )
-          );
-        } catch (err) {
-          console.error('Error updating task status:', err.response ? err.response.data : err.message);
-          setError(`Failed to update task. Error: ${err.response ? err.response.data.message : err.message}`);
-        } finally {
-          setButtonLoading(prevState => ({ ...prevState, [taskId]: false }));
-        }
-      }, 5000);
-    } else if (action === 'claim') {
-      try {
-        await axios.put(`https://lunarapp.thelunarcoin.com/backend/api/task/updateStatus`, {
-          userId: userId,
-          taskId: taskId,
-          status: 'complete'
-        }, {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-        setTaskData(prevState =>
-          prevState.map(task =>
-            task.taskId === taskId ? { ...task, status: 'complete' } : task
-          )
-        );
-      } catch (err) {
-        console.error('Error updating task status:', err.response ? err.response.data : err.message);
-        setError(`Failed to update task. Error: ${err.response ? err.response.data.message : err.message}`);
-      } finally {
-        setButtonLoading(prevState => ({ ...prevState, [taskId]: false }));
-      }
-    }
-  };
-
-  // Filter tasks based on the selected filter
-  const filteredTasks = taskData.filter(task => {
-    if (taskFilter === 'new') {
-      return task.status !== 'complete';
-    } else if (taskFilter === 'completed') {
-      return task.status === 'complete';
-    }
-    return true;
-  });
-
-  // Render loading spinner
   if (loading) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-cover text-white p-4">
         <div className="flex flex-col items-center space-y-4">
-          <h1 className="text-white text-4xl font-normal">
-            <ClipLoader color="#FFD700" size={60} speedMultiplier={1} />
-          </h1>
+          <ClipLoader color="#FFD700" size={60} speedMultiplier={1} />
         </div>
       </div>
     );
   }
 
-  // Render tasks and task filters
   return (
-    <div className="bg-cover min-h-screen flex flex-col">
-      <div className="flex-grow overflow-y-auto bg-cover text-center text-white p-4">
-        <h1 className="text-2xl font-bold">Complete the mission,<br /> earn the commission!</h1>
-        <p className="text-zinc-500 mt-2">But hey, only qualified actions unlock the <br /> LAR galaxy! ✨</p>
-        <div className="flex justify-center w-full mt-4">
-          <button 
-            className={`py-2 bg-opacity-70 text-center text-sm w-full rounded-2xl ${taskFilter === 'new' ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-400'}`}
-            onClick={() => setTaskFilter('new')}
-          > 
-            New
-          </button>
-          <button 
-            className={`bg-opacity-70 py-2 text-center text-sm w-full rounded-2xl ${taskFilter === 'completed' ? 'bg-white text-black' : 'bg-zinc-800 text-zinc-400'}`}
-            onClick={() => setTaskFilter('completed')}
-          >
-            Completed
-          </button>
-        </div>
-        <div className="mt-6 space-y-4">
-          {filteredTasks.length === 0 && taskFilter === 'completed' && (
-            <div>No completed tasks yet.</div>
-          )}
-          {filteredTasks.length === 0 && taskFilter === 'new' && (
-            <div>No new tasks yet.</div>
-          )}
-          
-          {filteredTasks.map((task) => (
-            <div key={task.taskId} className="bg-zinc-800 bg-opacity-70 p-4 rounded-xl flex justify-between items-center">
-              <div>
-                <p className="font-semibold">{task.name}</p>
-                <p className="text-golden-moon flex">
-                  <img aria-hidden="true" alt="team-icon" src={logo} className="mr-2" width='25' height='5' />
-                  {task.reward} LAR
-                </p>
-              </div>
-              <div className="flex items-center space-x-2">
-                {task.status === 'start' && (
-                  <button
-                    onClick={() => handleButtonClick(task.taskId, 'start')}
-                    className="bg-golden-moon text-white py-2 px-4 rounded-xl"
-                    disabled={loadingTask === task.taskId}
-                  >
-                    {loadingTask === task.taskId ? (
-                      <div className="spinner-border spinner-border-sm"></div>
-                    ) : (
-                      'Start'
-                    )}
-                  </button>
-                )}
-                {task.status === 'claim' && (
-                  <button
-                    onClick={() => handleButtonClick(task.taskId, 'claim')}
-                    className="bg-golden-moon text-white py-2 px-4 rounded-xl" 
-                    disabled={loadingTask === task.taskId}
-                  >
-                    {loadingTask === task.taskId ? <div className="spinner-border spinner-border-sm"></div> : 'Claim'}
-                  </button>
-                )}
-                {task.status === 'complete' && (
-                  <button 
-                    className="bg-golden-moon text-white py-2 px-4 rounded-xl"
-                    disabled
-                  >
-                    Completed
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+    <div className="min-h-screen bg-cover text-white flex flex-col items-center p-4 space-y-3">
+      <h1 className="text-4xl font-normal">Farm LAR tokens</h1>
+      <p className="text-4xl font-normal text-golden-moon"></p>
+      <p className="text-zinc-400 text-center">
+        Propel yourself by farming LAR!<br />
+        Claim more LAR and reach for the stars!
+      </p>
+      <div className="bg-zinc-800 bg-opacity-70 text-red-700 w-full max-w-md px-4 py-2 rounded-xl text-center">
+        Current farming era: <span className="text-yellow-900">⏰</span> <FormattedTime time={parseInt(farmData.farmTime, 10)} />
       </div>
-      <div className="w-full max-w-md sticky bottom-0 left-0 flex text-white bg-zinc-900 justify-around py-1">
+      <div className="bg-zinc-800 bg-opacity-70 text-card-foreground p-2 rounded-3xl w-full max-w-md text-center min-h-[40vh] flex flex-col justify-center space-y-5">
+        <p className="text-zinc-400 text-muted-foreground">Farming era reward</p>
+        <p className="text-4xl font-normal text-primary">
+          {farmData.farmReward} <span className="text-golden-moon">LAR</span>
+        </p>
+      </div>
+      <div className="space-y-6 w-full flex items-center flex-col">
+        <button
+          onClick={() => (isClaimable ? handleClaim() : handleStart())}
+          className={`text-white hover:bg-secondary/80 px-6 py-3 rounded-xl w-full max-w-md ${isFarming ? "bg-zinc-800 bg-opacity-70" : "bg-gradient-to-r from-golden-moon"}`}
+        >
+          {buttonText}
+        </button>
+      </div>
+      <div className="w-full max-w-md fixed bottom-0 left-0 flex justify-around bg-zinc-900 py-1">
         <Footer />
       </div>
     </div>
   );
 };
 
-export default Tasks;
+export default Farm;
