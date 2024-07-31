@@ -6,13 +6,8 @@ import { ClipLoader } from 'react-spinners';
 import axios from 'axios';
 
 const Farm = () => {
-  const [farmData, setFarmData] = useState({
-    farmTime: 21600,
-    farmReward: "0.00",
-    farmStatus: 'start',
-    farmTotal: "0.0"
-  });
-  const [userId, setUserId] = useState(null);
+  const [farmData, setFarmData] = useState({});
+  const [userId, setUserId] = useState("001");
   const [username, setUserName] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isFarming, setIsFarming] = useState(false);
@@ -86,35 +81,13 @@ const Farm = () => {
       }
     } catch (err) {
       if (err.response && err.response.status === 404) {
-        createInitialUser();
+        setError('User data not found.');
       } else {
         console.error('Error fetching farm data:', err);
         setError(`Failed to fetch data. Error: ${err.message}`);
-        setLoading(false); // Stop loading if there's an error
       }
     } finally {
       setLoading(false); // Ensure loading stops after fetching or error
-    }
-  };
-
-  const createInitialUser = async () => {
-    try {
-      const res = await axios.post(`https://lunarapp.thelunarcoin.com/backend/api/farm/add`, { userId });
-      console.log("Initial user created:", res.data); // Debugging log
-      setFarmData({
-        ...res.data,
-        farmTime: 21600,
-        farmReward: "0.00",
-      });
-      setLoading(false); // Stop loading after initial user is created
-    } catch (err) {
-      if (err.response && err.response.status === 409) {
-        fetchData();
-      } else {
-        console.error('Error creating initial user:', err);
-        setError(`Failed to create initial user. Error: ${err.message}`);
-        setLoading(false); // Stop loading if there's an error
-      }
     }
   };
 
@@ -128,7 +101,6 @@ const Farm = () => {
         farmReward: farmData.farmReward || "0.00",
         farmStatus: 'farming',
         lastActiveFarmTime: Math.floor(Date.now() / 1000)
-      
       }));
 
       startFarmingTimer(farmData.farmTime, parseFloat(farmData.farmReward));
